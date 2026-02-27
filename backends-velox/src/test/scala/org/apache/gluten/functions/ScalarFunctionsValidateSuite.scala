@@ -283,6 +283,33 @@ abstract class ScalarFunctionsValidateSuite extends FunctionsValidateSuite {
     }
   }
 
+  test("map_from_entries") {
+    // Constant input
+    runQueryAndCompare("""SELECT map_from_entries(array(struct(1, 'a'), struct(2, 'b'))),
+                         | l_orderkey from lineitem limit 100""".stripMargin) {
+      checkGlutenPlan[ProjectExecTransformer]
+    }
+
+    // Column input with nulls
+    withTempPath {
+      path =>
+        Seq(
+          Array((1, "a"), (2, "b")),
+          Array((3, "c")),
+          null
+        )
+          .toDF("i")
+          .write
+          .parquet(path.getCanonicalPath)
+
+        spark.read.parquet(path.getCanonicalPath).createOrReplaceTempView("mfe_tbl")
+
+        runQueryAndCompare("select map_from_entries(i) from mfe_tbl") {
+          checkGlutenPlan[ProjectExecTransformer]
+        }
+    }
+  }
+
   test("map_keys") {
     withTempPath {
       path =>
